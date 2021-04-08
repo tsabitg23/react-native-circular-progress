@@ -1,4 +1,5 @@
 import CircularProgress from './src/CircularProgress';
 import AnimatedCircularProgress from './src/AnimatedCircularProgress';
 
-export { CircularProgress, AnimatedCircularProgress }
+exports.CircularProgress = CircularProgress;
+exports.AnimatedCircularProgress = AnimatedCircularProgress;

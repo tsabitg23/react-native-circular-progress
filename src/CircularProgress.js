@@ -1,166 +1,114 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Animated, View } from 'react-native';
-import { Svg, Path, G } from 'react-native-svg';
+import { View, Platform, StyleSheet, ViewPropTypes } from 'react-native';
+//import { Surface, Shape, Path, Group } from '../../react-native/Libraries/ART/ReactNativeART';
+import MetricsPath from 'art/metrics/path';
+import { Surface, Shape, Path, Group } from '@react-native-community/art';
 
-export default class CircularProgress extends React.PureComponent {
-  polarToCartesian(centerX, centerY, radius, angleInDegrees) {
-    var angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
-    return {
-      x: centerX + radius * Math.cos(angleInRadians),
-      y: centerY + radius * Math.sin(angleInRadians),
-    };
+export default class CircularProgress extends React.Component {
+
+  circlePath(cx, cy, r, startDegree, endDegree) {
+    let p = Path();
+    if (Platform.OS === 'ios') {
+      p.path.push(0, cx + r, cy);
+      p.path.push(4, cx, cy, r, startDegree * Math.PI / 180, endDegree * Math.PI / 180, 1);
+    } else {
+      // For Android we have to resort to drawing low-level Path primitives, as ART does not support
+      // arbitrary circle segments. It also does not support strokeDash.
+      // Furthermore, the ART implementation seems to be buggy/different than the iOS one.
+      // MoveTo is not needed on Android
+      p.path.push(4, cx, cy, r, startDegree * Math.PI / 180, (startDegree - endDegree) * Math.PI / 180, 0);
+    }
+    return p;
   }
 
-  circlePath(x, y, radius, startAngle, endAngle) {
-    var start = this.polarToCartesian(x, y, radius, endAngle * 0.9999);
-    var end = this.polarToCartesian(x, y, radius, startAngle);
-    var largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
-    var d = ['M', start.x, start.y, 'A', radius, radius, 0, largeArcFlag, 0, end.x, end.y];
-    return d.join(' ');
-  }
+  extractFill(fill) {
+    if (fill < 0.01) {
+      return 0;
+    } else if (fill > 100) {
+      return 100;
+    }
 
-  clampFill = fill => Math.min(100, Math.max(0, fill));
+    return fill;
+  }
 
   render() {
     const {
-      size,
-      width,
-      backgroundWidth,
-      tintColor,
-      tintTransparency,
-      backgroundColor,
-      style,
-      rotation,
-      lineCap,
-      fillLineCap = lineCap,
-      arcSweepAngle,
-      fill,
-      children,
-      childrenContainerStyle,
-      padding,
-      renderCap,
-      dashedBackground,
-      dashedTint
+      showCircleBorder, size, width, tintColor, backgroundColor, style, rotation, children,
     } = this.props;
+    const backgroundPath = this.circlePath(size / 2, size / 2, size / 2 - width / 2, 0, 360);
 
-    const maxWidthCircle = backgroundWidth ? Math.max(width, backgroundWidth) : width;
-    const sizeWithPadding = size / 2 + padding / 2;
-    const radius = size / 2 - maxWidthCircle / 2 - padding / 2;
+    const fill = this.extractFill(this.props.fill);
+    const circlePath = this.circlePath(size / 2, size / 2, size / 2 - width / 2, 0, 360 * fill / 100);
 
-    const currentFillAngle = (arcSweepAngle * this.clampFill(fill)) / 100;
-    const backgroundPath = this.circlePath(
-      sizeWithPadding,
-      sizeWithPadding,
-      radius,
-      tintTransparency ? 0 : currentFillAngle,
-      arcSweepAngle
-    );
-    const circlePath = this.circlePath(
-      sizeWithPadding,
-      sizeWithPadding,
-      radius,
-      0,
-      currentFillAngle
-    );
-    const coordinate = this.polarToCartesian(
-      sizeWithPadding,
-      sizeWithPadding,
-      radius,
-      currentFillAngle
-    );
-    const cap = this.props.renderCap ? this.props.renderCap({ center: coordinate }) : null;
-
-    const offset = size - maxWidthCircle * 2;
-
-    const localChildrenContainerStyle = {
-      ...{
-        position: 'absolute',
-        left: maxWidthCircle + padding / 2,
-        top: maxWidthCircle + padding / 2,
-        width: offset,
-        height: offset,
-        borderRadius: offset / 2,
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-      },
-      ...childrenContainerStyle,
-    }
-
-    const strokeDasharrayTint = dashedTint.gap > 0 ?
-      Object.values(dashedTint)
-      .map(value => parseInt(value))
-      : null;
-
-    const strokeDasharrayBackground = dashedBackground.gap > 0 ?
-      Object.values(dashedBackground)
-      .map(value => parseInt(value))
-      : null;
+    const circleBorder = showCircleBorder ? (
+        <Shape
+            d={backgroundPath}
+            stroke={backgroundColor}
+            strokeWidth={width}
+        />
+    ) : null;
 
     return (
-      <View style={style}>
-        <Svg width={size + padding} height={size + padding}>
-          <G rotation={rotation} originX={(size + padding) / 2} originY={(size + padding) / 2}>
-            {backgroundColor && (
-              <Path
-                d={backgroundPath}
-                stroke={backgroundColor}
-                strokeWidth={backgroundWidth || width}
-                strokeLinecap={lineCap}
-                strokeDasharray={strokeDasharrayBackground}
-                fill="transparent"
+        <View style={[style]}>
+          <Surface
+              width={size}
+              height={size}
+          >
+            <Group rotation={rotation - 90} originX={size / 2} originY={size / 2}>
+              <Shape
+                  d={backgroundPath}
+                  stroke={backgroundColor}
+                  strokeWidth={width}
               />
-            )}
-            {fill > 0 && (
-              <Path
-                d={circlePath}
-                stroke={tintColor}
-                strokeWidth={width}
-                strokeLinecap={fillLineCap}
-                strokeDasharray={strokeDasharrayTint}
-                fill="transparent"
+              <Shape
+                  d={circlePath}
+                  stroke={tintColor}
+                  strokeWidth={width}
+                  strokeCap="butt"
               />
-            )}
-            {cap}
-          </G>
-        </Svg>
-        {children && <View style={localChildrenContainerStyle}>{children(fill)}</View>}
-      </View>
+            </Group>
+          </Surface>
+          <View style={styles.children}>
+            {children}
+          </View>
+        </View>
     );
   }
 }
 
 CircularProgress.propTypes = {
-  style: PropTypes.object,
-  size: PropTypes.oneOfType([
-    PropTypes.number,
-    PropTypes.instanceOf(Animated.Value),
-  ]).isRequired,
+  style: ViewPropTypes.style,
+  size: PropTypes.number.isRequired,
   fill: PropTypes.number.isRequired,
   width: PropTypes.number.isRequired,
-  backgroundWidth: PropTypes.number,
   tintColor: PropTypes.string,
-  tintTransparency: PropTypes.bool,
   backgroundColor: PropTypes.string,
   rotation: PropTypes.number,
-  lineCap: PropTypes.string,
-  arcSweepAngle: PropTypes.number,
-  children: PropTypes.func,
-  childrenContainerStyle: PropTypes.object,
-  padding: PropTypes.number,
-  renderCap: PropTypes.func,
-  dashedBackground: PropTypes.object,
-  dashedTint: PropTypes.object
+  showCircleBorder: PropTypes.bool,
+  children: PropTypes.any,
 };
 
 CircularProgress.defaultProps = {
   tintColor: 'black',
-  tintTransparency: true,
+  backgroundColor: '#e4e4e4',
   rotation: 90,
-  lineCap: 'butt',
-  arcSweepAngle: 360,
-  padding: 0,
-  dashedBackground: { width: 0, gap: 0 },
-  dashedTint: { width: 0, gap: 0 },
 };
+
+const styles = StyleSheet.create({
+  container: {
+    borderWidth: 2,
+    borderColor: 'rgb(237, 59, 59)',
+    borderRadius: 50,
+  },
+  children: {
+    position: 'absolute',
+    top: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+});
